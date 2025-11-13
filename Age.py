@@ -80,7 +80,7 @@ print(test.isnull().sum())
 print(train)
 
 label_encoders = {}
-for c in ["Sex", "Embarked", "Rare_name", "Family"]:
+for c in ["Sex", "Embarked", "Rare_name"]:
     label_encoders[c] = LabelEncoder()
     label_encoders[c].fit(pd.concat([train[c], test[c]]).astype(str))
     train[c] = label_encoders[c].transform(train[c].astype(str))
@@ -124,3 +124,11 @@ pred = model.predict(test)
 submission = pd.read_csv(PATH + 'gender_submission.csv')
 submission['Perished'] = pred
 submission.to_csv(PATH + 'submission.csv', index=False)
+
+#所感
+#まじでこんなはやくハイスコアを出せると思ってなかったので、本当にうれしいと思った。正直まだまだ試せることがたくさんあるので、明日以降はそういったところを試していきたい。
+#特徴量エンジニアリングに関しては、Fareなどの改善余地があると思うので、そこらへんを重点的にやっていきたい。
+#また、モデルに関してもランダムフォレスト以外のモデルや、アンサンブル学習なども試していきたい。更に、ハイパラをいじったりなどまだまだできることはある
+#Familyを抜いてみたが、ばらつきが少しだけ大きくなったように感じた。これからの改良はかなり地道なものになるが、コツコツやっていきたい。
+#また、年齢の補完方法は乱数での補完になっているため、そこの幅の調整についてもいじれる余地があると考えているので明日以降は特徴量エンジニアリングというよりかはハイパラをいじったりなどを重点的に行っていく。
+#11/14
