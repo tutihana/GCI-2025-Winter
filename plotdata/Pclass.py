@@ -14,10 +14,17 @@ PATH = "C:\\Users\\piyop\\OneDrive\\デスクトップ\\GCI 2025 Winter\\data\\"
 train = pd.read_csv(PATH + 'train.csv') 
 test = pd.read_csv(PATH + 'test.csv')
 
-perished_rate = train.groupby('Pclass')['Perished'].mean()
+#Pclass＋Sexの死亡率の可視化を行う。
+perished_rate = train.groupby(['Pclass', 'Sex'])['Perished'].mean()
 print(perished_rate)
 
-train.groupby('Pclass')['Perished'].mean().plot(kind='bar')
+train.groupby(['Pclass', 'Sex'])['Perished'].mean().unstack().plot(kind='bar')
 plt.ylabel('Perished Rate')
-plt.title('Perished Rate by Pclass')
+plt.title('Perished Rate by Pclass and Sex')
 plt.show()
+
+#女性の方がどのクラスでも生存率が高いことがわかり、特に等級が1号の客席の女性に関しては
+#非常に生存率が高いことがわかる。
+#また、2つ目の等級の女性に関しても同様に死亡率が低く、１，２等級の女性たちは優遇されていたことが
+#数値からよくわかる。
+
