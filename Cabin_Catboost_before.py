@@ -64,10 +64,6 @@ test['Rare_name']  = test['Rare_name'].fillna(train['Rare_name'].mode()[0])
 train['Age'] = train['Age'].fillna(train.groupby('Title')['Age'].transform('median'))
 test['Age']  = test['Age'].fillna(test.groupby('Title')['Age'].transform('median'))
 
-# 不要な列を削除+Title列とName列は不要なので削除
-train = train.drop(columns=['Ticket', 'Cabin',"PassengerId","Name", 'Title',"Sex","Ticket_Prefix"])
-test = test.drop(columns=['Ticket', 'Cabin',"PassengerId","Name", 'Title',"Sex","Ticket_Prefix"])
-
 # Embarked を最頻値で埋める
 train['Embarked'].fillna(train['Embarked'].mode()[0], inplace=True)
 test['Embarked'].fillna(train['Embarked'].mode()[0], inplace=True)
@@ -107,9 +103,70 @@ test['SiblingsOnly']  = ((test['SibSp'] > 0) & (test['Parch'] == 0)).astype(int)
 train['ParentsOnly'] = ((train['Parch'] > 0) & (train['SibSp'] == 0)).astype(int)
 test['ParentsOnly']  = ((test['Parch'] > 0) & (test['SibSp'] == 0)).astype(int)
 
-# もう SibSp / Parch は生で使わないので削除
-train.drop(['SibSp', 'Parch'], axis=1, inplace=True)
-test.drop(['SibSp', 'Parch'], axis=1, inplace=True)
+train["Deck"] = train["Cabin"].astype(str).str[0]
+test["Deck"]  = test["Cabin"].astype(str).str[0]
+
+# NaN（= 'n' など）を Unknown に置き換える
+train["Deck"] = train["Deck"].replace("n", "Unknown")
+test["Deck"]  = test["Deck"].replace("n", "Unknown")
+
+# RARE デッキをまとめる（A/B/C/D/E/F/G 以外）
+valid_decks = ["A", "B", "C", "D", "E", "F", "G"]
+train.loc[~train["Deck"].isin(valid_decks), "Deck"] = "Unknown"
+test.loc[~test["Deck"].isin(valid_decks),  "Deck"] = "Unknown"
+
+
+# ==========================================
+# ★ 追加 → Cabin から部屋番号（数字）を抽出
+# ==========================================
+
+# Cabin の最初に登場する数字を抽出（複数部屋も先頭だけ取る）
+train["Cabin_Num"] = train["Cabin"].astype(str).str.extract(r'(\d+)', expand=False)
+test["Cabin_Num"]  = test["Cabin"].astype(str).str.extract(r'(\d+)', expand=False)
+
+# 数値型に変換
+train["Cabin_Num"] = train["Cabin_Num"].astype(float)
+test["Cabin_Num"]  = test["Cabin_Num"].astype(float)
+
+# 数字が無かったものは -1 に統一（“部屋番号なし”という特徴になる）
+train["Cabin_Num"] = train["Cabin_Num"].fillna(-1)
+test["Cabin_Num"]  = test["Cabin_Num"].fillna(-1)
+
+# ==========================================
+# ★ 追加 → Cabin_Num を階層カテゴリに変換
+# ==========================================
+
+def cabin_floor_bin(x):
+    if x == -1:
+        return "Unknown"     # Cabin 情報なし（3等客に多い）
+    elif x < 40:
+        return "Upper"       # 0〜39 → 比較的上層階
+    elif x < 120:
+        return "Middle"      # 40~119 → 中層階
+    else:
+        return "Lower"       # 120以上 → 下層階（浸水やすい）
+
+#階層情報を与えて、わかりやすくする
+train["Cabin_Floor"] = train["Cabin_Num"].apply(cabin_floor_bin)
+test["Cabin_Floor"]  = test["Cabin_Num"].apply(cabin_floor_bin)
+
+train["Has_Cabin"] = (train["Cabin_Num"] != -1).astype(int)
+test["Has_Cabin"]  = (test["Cabin_Num"] != -1).astype(int)
+
+
+def count_cabins(x):
+    # NaN は 0、そうでなければスペース区切りでカウント
+    if pd.isna(x):
+        return 0
+    return len(str(x).split())
+
+train["Cabin_Count"] = train["Cabin"].apply(count_cabins)
+test["Cabin_Count"]  = test["Cabin"].apply(count_cabins)
+
+# 不要な列を削除+Title列とName列は不要なので削除
+train = train.drop(columns=['Ticket',"Cabin","PassengerId","Name", 'Title',"Sex","Ticket_Prefix",'SibSp', 'Parch'])
+test = test.drop(columns=['Ticket',"Cabin","PassengerId","Name", 'Title',"Sex","Ticket_Prefix",'SibSp', 'Parch'])
+
 
 # 特徴量と目的変数に分ける
 X = train.drop(columns=["Perished"])  # 予測に使う説明変数
@@ -125,7 +182,10 @@ X_train, X_valid, y_train, y_valid = train_test_split(
 # ==============================
 
 # ここは「カテゴリとして扱ってほしいカラム」
-cat_features = ['Embarked', 'Rare_name', 'Prefix_Class','FamilyCategory']
+cat_features = ['Embarked', 'Rare_name',
+                'Prefix_Class','FamilyCategory',
+                'Deck','Cabin_Floor'
+                ]
 
 model = CatBoostClassifier(
     iterations=500,          # 上限回数をまず減らす（300～500で十分なこと多い）
@@ -175,5 +235,5 @@ pred = model.predict(test)
 submission = pd.read_csv(PATH + 'gender_submission.csv')
 submission['Perished'] = pred
 submission.to_csv(PATH + 'submission.csv', index=False)
+print("訓練データの正解率と検証データの正解率の差異:",round(accuracy2, 4) - round(accuracy1, 4))
 print("submission.csv を出力しました")
-print(train["Rare_name"].value_counts())
